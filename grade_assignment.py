@@ -25,6 +25,7 @@ async def grade_assignment(submission, section='3', assignment='lab01'):
             stderr=asyncio.subprocess.PIPE
         )
     with open(submission) as f:
+
         content = f.read().encode('utf-8')
         try:
             async with async_timeout.timeout(300):
@@ -32,6 +33,7 @@ async def grade_assignment(submission, section='3', assignment='lab01'):
         except asyncio.TimeoutError:
             print(f'Grading timed out for {submission}')
             return False
+
         for line in stderr.decode('utf-8').split('\n'):
             if line.strip() == '':
                 # Ignore empty lines
