@@ -147,7 +147,11 @@ class GoferHandler(HubAuthenticated, tornado.web.RequestHandler):
                 assignment = notebook['metadata']['assignment']
             except:
                 assignment = notebook['metadata']['lab']
-            course = notebook['metadata']['course']
+            
+            try:
+                course = notebook['metadata']['course']
+            except:
+                course = "8x"
 
             # save notebook submission with user id and time stamp
             submission_file = "/home/vipasu/gofer_service/submissions/{}_{}_{}_{}.ipynb".format(user['name'], section, assignment, timestamp)
