@@ -138,29 +138,30 @@ class GoferHandler(HubAuthenticated, tornado.web.RequestHandler):
         """Accept notebook submissions, saves, then grades them"""
         user = self.get_current_user()
         req_data = tornado.escape.json_decode(self.request.body)
-        # in the future, assignment should be metadata in notebook
-        notebook = req_data['nb']
-        section = notebook['metadata']['section']
-        try:
-            assignment = notebook['metadata']['assignment']
-        except:
-            assignment = notebook['metadata']['lab']
-
-        try:
-            course = notebook['metadata']['course']
-        except:
-            course = "8x"
-
-
         timestamp = str(time.time())
-        # save notebook submission with user id and time stamp
-        submission_file = "/home/vipasu/gofer_service/submissions/{}_{}_{}_{}.ipynb".format(user['name'], section, assignment, timestamp)
+        # in the future, assignment should be metadata in notebook
+        try:
+            notebook = req_data['nb']
+            section = notebook['metadata']['section']
+            try:
+                assignment = notebook['metadata']['assignment']
+            except:
+                assignment = notebook['metadata']['lab']
+            
+            try:
+                course = notebook['metadata']['course']
+            except:
+                course = "8x"
+
+            # save notebook submission with user id and time stamp
+            submission_file = "/home/vipasu/gofer_service/submissions/{}_{}_{}_{}.ipynb".format(user['name'], section, assignment, timestamp)
+        except:
+            logErrorCSV(timestamp, user['name'], section, assignment, traceback.format_exc())
+            self.write("Error in notebook metadata. Please redownload your notebook.")
+            self.finish()
+
         with open(submission_file, 'w') as outfile:
             json.dump(notebook, outfile)
-
-        # Let user know their submission was received
-        self.write("User submission has been received. Grade will be posted to the gradebook once it's finished running!")
-        self.finish()
 
         try:
             # Grade assignment
@@ -171,6 +172,9 @@ class GoferHandler(HubAuthenticated, tornado.web.RequestHandler):
             write_grade(grade_info)
         except:
             logErrorCSV(timestamp, user['name'], section, assignment, traceback.format_exc())
+            self.write("Error in grading assignment. Please wait a minute and resubmit. If the problem  \
+                        persists, please contact support.")
+            self.finish()
 
         # post grade to EdX
         with open('/home/vipasu/x19_config.json', 'r') as fname:
@@ -185,10 +189,16 @@ class GoferHandler(HubAuthenticated, tornado.web.RequestHandler):
             await post_grade(user['name'], grade,
                             course_config[course]["sourcedid"][section][assignment],
                             course_config[course]["outcomes_url"][section][assignment])
-        except GradePostException as e:
-            logErrorCSV(timestamp, user['name'], section, assignment, str(e.response) + "\n" + traceback.format_exc())
-        except:
-            logErrorCSV(timestamp, user['name'], section, assignment, traceback.format_exc())
+        except Exception as e:
+            errmsg = str(e.response) if type(e) is GradePostException else '' + "\n" + traceback.format_exc()
+            logErrorCSV(timestamp, user['name'], section, assignment, errmsg)
+            self.write("Error in posting grade. Please wait a minute and resubmit. If the problem  \
+                        persists, please contact support.")
+            self.finish()
+
+        # Let user know their submission was received
+        self.write("User submission has been received and graded. Grade will be posted to the gradebook!")
+        self.finish()
 
 def logErrorCSV(timestamp, username, section, assignment, msg):
     try:
